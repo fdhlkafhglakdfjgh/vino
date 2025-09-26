@@ -62,9 +62,9 @@
     async function loadModel() {
       try {
         status.textContent = "Загрузка AI модели...";
-session = await ort.InferenceSession.create("yolov8n.onnx", {
-  executionProviders: ["webgpu","wasm"]
-});
+        session = await ort.InferenceSession.create("yolov8n.onnx", {
+          executionProviders: ["webgpu","wasm"]
+        });
         status.textContent = "Модель успешно загружена ✅";
         setTimeout(() => status.classList.add("hidden"), 1000);
       } catch (e) {
@@ -150,4 +150,5 @@ session = await ort.InferenceSession.create("yolov8n.onnx", {
   </script>
 </body>
 </html>
+
 
