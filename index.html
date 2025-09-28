@@ -2,24 +2,22 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Детектор бутылок (YOLOv8n)</title>
+  <title>Обнаружение бутылок (YOLOv8n)</title>
   <style>
     body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
     h1 { color: #333; }
     .container { position: relative; width: 640px; height: 480px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
     video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
-    #counter { margin-top: 20px; font-size: 22px; font-weight: bold; background: #5cb85c; color: white; padding: 10px 20px; border-radius: 50px; }
     #status { margin-top: 10px; font-size: 16px; color: #666; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
-  <h1>Обнаружение бутылок (наш сервис)</h1>
+  <h1>Обнаружение бутылок</h1>
   <div class="container">
     <video id="webcam" autoplay muted playsinline></video>
     <canvas id="canvas"></canvas>
   </div>
-  <div id="counter">Бутылок найдено: 0</div>
   <div id="status">Загрузка AI модели...</div>
 
   <!-- onnxruntime-web -->
@@ -28,23 +26,10 @@
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const counter = document.getElementById('counter');
     const status = document.getElementById('status');
 
     let session = null;
     const CONFIDENCE_THRESHOLD = 0.5;
-    const TARGET_CLASS = "bottle";
-
-    // классы COCO (80 объектов)
-    const classNames = ["person","bicycle","car","motorbike","aeroplane","bus","train","truck",
-      "boat","traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat",
-      "dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack","umbrella",
-      "handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite","baseball bat",
-      "baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork",
-      "knife","spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog",
-      "pizza","donut","cake","chair","sofa","pottedplant","bed","diningtable","toilet","tvmonitor",
-      "laptop","mouse","remote","keyboard","cell phone","microwave","oven","toaster","sink",
-      "refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"];
 
     async function initCamera() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -62,6 +47,7 @@
     async function loadModel() {
       try {
         status.textContent = "Загрузка AI модели...";
+        // ⚠️ модель yolov8n.onnx должна лежать рядом с index.html в репозитории
         session = await ort.InferenceSession.create("yolov8n.onnx", {
           executionProviders: ["webgpu","wasm"]
         });
@@ -108,8 +94,6 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      let bottleCount = 0;
-
       // YOLOv8n ONNX вывод: N x 85 (x,y,w,h,obj_score,80 классов)
       const numDetections = output.length / 85;
       for (let i = 0; i < numDetections; i++) {
@@ -124,8 +108,8 @@
         const maxScore = Math.max(...classScores);
         const classId = classScores.indexOf(maxScore);
 
-        if (maxScore > CONFIDENCE_THRESHOLD && classNames[classId] === TARGET_CLASS) {
-          bottleCount++;
+        // ⚠️ класс bottle в COCO имеет id = 39
+        if (maxScore > CONFIDENCE_THRESHOLD && classId === 39) {
           const bx = (x - w/2) * canvas.width / 640;
           const by = (y - h/2) * canvas.height / 640;
           const bw = w * canvas.width / 640;
@@ -139,7 +123,6 @@
           ctx.fillText(`Bottle ${(maxScore*100).toFixed(1)}%`, bx, by > 15 ? by - 5 : 15);
         }
       }
-      counter.textContent = `Бутылок найдено: ${bottleCount}`;
     }
 
     (async () => {
@@ -150,5 +133,3 @@
   </script>
 </body>
 </html>
-
-
