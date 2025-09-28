@@ -4,10 +4,32 @@
   <meta charset="UTF-8">
   <title>Обнаружение бутылок (YOLOv8n)</title>
   <style>
-    body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
     h1 { color: #333; }
-    .container { position: relative; width: 640px; height: 480px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-    video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+    .container {
+      position: relative;
+      width: 640px;
+      height: 480px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+    }
     #status { margin-top: 10px; font-size: 16px; color: #666; }
     .hidden { display: none; }
   </style>
@@ -49,7 +71,7 @@
         status.textContent = "Загрузка AI модели...";
         // ⚠️ модель yolov8n.onnx должна лежать рядом с index.html в репозитории
         session = await ort.InferenceSession.create("yolov8n.onnx", {
-          executionProviders: ["webgpu","wasm"]
+          executionProviders: ["webgpu", "wasm"]
         });
         status.textContent = "Модель успешно загружена ✅";
         setTimeout(() => status.classList.add("hidden"), 1000);
@@ -94,33 +116,35 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // YOLOv8n ONNX вывод: N x 85 (x,y,w,h,obj_score,80 классов)
-      const numDetections = output.length / 85;
-      for (let i = 0; i < numDetections; i++) {
-        const x = output[i * 85];
-        const y = output[i * 85 + 1];
-        const w = output[i * 85 + 2];
-        const h = output[i * 85 + 3];
-        const objScore = output[i * 85 + 4];
+      // YOLOv8n ONNX вывод: [1,84,8400] -> приводим к [8400,84]
+      let numAnchors, numAttrs;
+      if (output.length % 84 === 0) {
+        numAnchors = output.length / 84;
+        numAttrs = 84;
+      } else {
+        console.error("Неизвестный формат выхода:", output.length);
+        return;
+      }
+
+      for (let i = 0; i < numAnchors; i++) {
+        const x = output[i * numAttrs + 0]; // центр X
+        const y = output[i * numAttrs + 1]; // центр Y
+        const w = output[i * numAttrs + 2];
+        const h = output[i * numAttrs + 3];
+        const objScore = output[i * numAttrs + 4];
         if (objScore < CONFIDENCE_THRESHOLD) continue;
 
-        const classScores = output.slice(i * 85 + 5, i * 85 + 85);
+        const classScores = output.slice(i * numAttrs + 5, i * numAttrs + 85);
         const maxScore = Math.max(...classScores);
         const classId = classScores.indexOf(maxScore);
 
-        // ⚠️ класс bottle в COCO имеет id = 39
-        if (maxScore > CONFIDENCE_THRESHOLD && classId === 39) {
-          const bx = (x - w/2) * canvas.width / 640;
-          const by = (y - h/2) * canvas.height / 640;
-          const bw = w * canvas.width / 640;
-          const bh = h * canvas.height / 640;
-
-          ctx.strokeStyle = "#5cb85c";
-          ctx.lineWidth = 3;
-          ctx.strokeRect(bx, by, bw, bh);
-          ctx.fillStyle = "#5cb85c";
-          ctx.font = "16px sans-serif";
-          ctx.fillText(`Bottle ${(maxScore*100).toFixed(1)}%`, bx, by > 15 ? by - 5 : 15);
+        // Класс "bottle" в COCO = 39
+        if (classId === 39 && maxScore * objScore > CONFIDENCE_THRESHOLD) {
+          const cx = (x) * canvas.width / 640;
+          const cy = (y) * canvas.height / 640;
+          ctx.fillStyle = "lime";
+          ctx.font = "32px sans-serif";
+          ctx.fillText("✅", cx, cy);
         }
       }
     }
